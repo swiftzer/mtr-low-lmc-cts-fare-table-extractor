@@ -1,0 +1,113 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  unit-tests:
+    name: Unit tests (JDK 17)
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 15
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Validate Gradle Wrapper
+        uses: gradle/actions/wrapper-validation@v6
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v6
+
+      - name: Run unit tests
+        run: ./gradlew test --stacktrace
+
+      - name: Upload unit test reports
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unit-test-reports
+          path: build/reports/tests/test/
+          if-no-files-found: ignore
+          retention-days: 7
+
+  integration-tests:
+    name: Network integration tests (JDK 17)
+    if: github.event_name == 'workflow_dispatch'
+    needs: unit-tests
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 20
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Validate Gradle Wrapper
+        uses: gradle/actions/wrapper-validation@v6
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v6
+
+      - name: Download upstream integration fixtures
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          fixture_dir="${RUNNER_TEMP}/mtr-low-lmc-fare-fixtures"
+          mkdir -p "${fixture_dir}"
+
+          curl --fail --location --retry 3 --retry-all-errors \
+            --connect-timeout 30 --max-time 180 \
+            --output "${fixture_dir}/tpcb4-737-1-c.pdf" \
+            "https://www.legco.gov.hk/yr2024/chinese/panels/tp/papers/tpcb4-737-1-c.pdf"
+          curl --fail --location --retry 3 --retry-all-errors \
+            --connect-timeout 30 --max-time 180 \
+            --output "${fixture_dir}/tpcb4-535-1-c.pdf" \
+            "https://www.legco.gov.hk/yr2023/chinese/panels/tp/papers/tpcb4-535-1-c.pdf"
+          curl --fail --location --retry 3 --retry-all-errors \
+            --connect-timeout 30 --max-time 180 \
+            --output "${fixture_dir}/mtr_lines_and_stations.csv" \
+            "https://opendata.mtr.com.hk/data/mtr_lines_and_stations.csv"
+
+          test -s "${fixture_dir}/tpcb4-737-1-c.pdf"
+          test -s "${fixture_dir}/tpcb4-535-1-c.pdf"
+          test -s "${fixture_dir}/mtr_lines_and_stations.csv"
+
+          {
+            echo "LEGCO_2024_PDF=${fixture_dir}/tpcb4-737-1-c.pdf"
+            echo "LEGCO_2023_PDF=${fixture_dir}/tpcb4-535-1-c.pdf"
+            echo "MTR_STATIONS_CSV=${fixture_dir}/mtr_lines_and_stations.csv"
+          } >> "${GITHUB_ENV}"
+
+      - name: Run network integration tests
+        run: ./gradlew integrationTest --stacktrace
+
+      - name: Upload integration test reports
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: integration-test-reports
+          path: build/reports/tests/integrationTest/
+          if-no-files-found: ignore
+          retention-days: 7
