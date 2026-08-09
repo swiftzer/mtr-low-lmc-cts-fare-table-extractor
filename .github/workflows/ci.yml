@@ -77,15 +77,16 @@ jobs:
           fixture_dir="${RUNNER_TEMP}/mtr-low-lmc-fare-fixtures"
           mkdir -p "${fixture_dir}"
 
-          curl --fail --location --retry 3 --retry-all-errors \
+          # LegCo's certificate chain is not trusted by this GitHub-hosted ARM runner.
+          curl --proto '=https' --proto-redir '=https' --insecure --fail --location --retry 3 --retry-all-errors \
             --connect-timeout 30 --max-time 180 \
             --output "${fixture_dir}/tpcb4-737-1-c.pdf" \
             "https://www.legco.gov.hk/yr2024/chinese/panels/tp/papers/tpcb4-737-1-c.pdf"
-          curl --fail --location --retry 3 --retry-all-errors \
+          curl --proto '=https' --proto-redir '=https' --insecure --fail --location --retry 3 --retry-all-errors \
             --connect-timeout 30 --max-time 180 \
             --output "${fixture_dir}/tpcb4-535-1-c.pdf" \
             "https://www.legco.gov.hk/yr2023/chinese/panels/tp/papers/tpcb4-535-1-c.pdf"
-          curl --fail --location --retry 3 --retry-all-errors \
+          curl --proto '=https' --proto-redir '=https' --fail --location --retry 3 --retry-all-errors \
             --connect-timeout 30 --max-time 180 \
             --output "${fixture_dir}/mtr_lines_and_stations.csv" \
             "https://opendata.mtr.com.hk/data/mtr_lines_and_stations.csv"
